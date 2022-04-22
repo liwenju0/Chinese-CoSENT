@@ -1,11 +1,10 @@
-# CoSENT_Pytorch
+# CoSENT_Pytorch 
 
-比Sentence-BERT更有效的句向量方案
+fork自：https://github.com/shawroad/CoSENT_Pytorch
 
 ## 
 - 参考: https://github.com/bojone/CoSENT
 - 对应博客：https://kexue.fm/archives/8847
-- 孟子预训练模型: https://github.com/Langboat/Mengzi
 
 
 ## 实验结果
@@ -39,9 +38,9 @@ train训练、test测试：
 sh start.sh
 ```
 
-2. 运行SentenceBert模型
 
+2. 测试模型
 ```
-首先，执行 python sentence_bert/data_helper.py  生成对应的数据
-再执行 CUDA_VISIBLE_DEVICES=0 python sentence_bert/run_sentence_bert_transformers_reg_loss.py
+python test_model.py
+
 ```
