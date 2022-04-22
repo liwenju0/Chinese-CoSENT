@@ -31,21 +31,22 @@ def get_sent_id_tensor(s_list, max_len=128):
     return all_input_ids, all_input_mask, all_segment_ids
 
 
-def evaluate(max_len=128):
+def evaluate(args):
     sent1, sent2, label = load_test_data(args.test_data)
     all_a_vecs = []
     all_b_vecs = []
     all_labels = []
     model.eval()
     for s1, s2, lab in tqdm(zip(sent1, sent2, label)):
-        input_ids, input_mask, segment_ids = get_sent_id_tensor([s1, s2], max_len=max_len)
+        input_ids, input_mask, segment_ids = get_sent_id_tensor([s1, s2], max_len=args.max_len)
         lab = torch.tensor([lab], dtype=torch.float)
         if torch.cuda.is_available():
             input_ids, input_mask, segment_ids = input_ids.cuda(), input_mask.cuda(), segment_ids.cuda()
             lab = lab.cuda()
 
         with torch.no_grad():
-            output = model(input_ids=input_ids, attention_mask=input_mask, encoder_type='fist-last-avg')
+            output = model(input_ids=input_ids, attention_mask=input_mask,
+                           token_type_ids=segment_ids, encoder_type='fist-last-avg')
 
         all_a_vecs.append(output[0].cpu().numpy())
         all_b_vecs.append(output[1].cpu().numpy())
@@ -59,6 +60,7 @@ def evaluate(max_len=128):
     b_vecs = l2_normalize(all_b_vecs)
     sims = (a_vecs * b_vecs).sum(axis=1)
     corrcoef = compute_corrcoef(all_labels, sims)
+    model.train()
     return corrcoef
 
 
@@ -129,6 +131,7 @@ if __name__ == '__main__':
     print("  Num examples = %d" % len(train_dataset))
     print("  Batch size = %d" % args.train_batch_size)
     print("  Num steps = %d" % num_train_optimization_steps)
+    best_val = -1
     for epoch in range(args.num_train_epochs):
         model.train()
         train_label, train_predict = [], []
@@ -140,7 +143,8 @@ if __name__ == '__main__':
             if torch.cuda.is_available():
                 input_ids, input_mask, segment_ids = input_ids.cuda(), input_mask.cuda(), segment_ids.cuda()
                 label_ids = label_ids.cuda()
-            output = model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids, encoder_type='fist-last-avg')
+            output = model(input_ids=input_ids, attention_mask=input_mask,
+                           token_type_ids=segment_ids, encoder_type='fist-last-avg')
             loss = calc_loss(label_ids, output)
             loss.backward()
             print("当前轮次:{}, 正在迭代:{}/{}, Loss:{:10f}".format(epoch, step, len(train_dataloader), loss))  # 在进度条前面定义一段文字
@@ -152,13 +156,14 @@ if __name__ == '__main__':
                 scheduler.step()
                 optimizer.zero_grad()
 
-        corr = evaluate(max_len=args.max_len)
+        corr = evaluate(args)
         s = 'Epoch:{} | corr: {:10f}'.format(epoch, corr)
         logs_path = os.path.join(args.output_dir, 'logs.txt')
         with open(logs_path, 'a+') as f:
             s += '\n'
             f.write(s)
-
-        model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
-        output_model_file = os.path.join(args.output_dir, "base_model_epoch_{}.bin".format(epoch))
-        torch.save(model_to_save.state_dict(), output_model_file)
+        if corr > best_val:
+            model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+            output_model_file = os.path.join(args.output_dir, "best_model.bin")
+            torch.save(model_to_save.state_dict(), output_model_file)
+            best_val = corr
