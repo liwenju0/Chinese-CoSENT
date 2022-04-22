@@ -58,7 +58,8 @@ if __name__ == '__main__':
                 input_ids, input_mask, segment_ids = input_ids.cuda(), input_mask.cuda(), segment_ids.cuda()
 
             with torch.no_grad():
-                output = model(input_ids=input_ids, attention_mask=input_mask, encoder_type='fist-last-avg')
+                output = model(input_ids=input_ids, attention_mask=input_mask,
+                               token_type_ids=segment_ids, encoder_type='fist-last-avg')
 
             all_a_vecs.append(output[0].cpu().numpy())
             all_b_vecs.append(output[1].cpu().numpy())
