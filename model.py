@@ -12,7 +12,7 @@ from transformers import BertConfig, BertModel
 class Model(nn.Module):
     def __init__(self, pretrained_model_path):
         super(Model, self).__init__()
-        self.pretrain_model_path = pretrained_model_path
+        self.pretrained_model_path = pretrained_model_path
         self.bert = BertModel.from_pretrained(self.pretrained_model_path)
 
     def forward(self, input_ids, attention_mask, token_type_ids, encoder_type='fist-last-avg'):
