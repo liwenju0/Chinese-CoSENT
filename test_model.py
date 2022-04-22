@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_path)
 
-    model = Model()
+    model = Model(args.pretrained_model_path)
     model.load_state_dict(torch.load(args.output_dir + "/best_model.bin"))
 
     if torch.cuda.is_available():
