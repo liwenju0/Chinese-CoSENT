@@ -10,19 +10,20 @@ from transformers import BertConfig, BertModel
 
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrain_model_path):
         super(Model, self).__init__()
-        self.config = BertConfig.from_pretrained('./mengzi_pretrain/config.json')
-        self.bert = BertModel.from_pretrained('./mengzi_pretrain/pytorch_model.bin', config=self.config)
+        self.pretrain_model_path = pretrain_model_path
+        self.config = BertConfig.from_pretrained(self.pretrain_model_path)
+        self.bert = BertModel.from_pretrained(self.pretrain_model_path)
 
-    def forward(self, input_ids, attention_mask, encoder_type='fist-last-avg'):
+    def forward(self, input_ids, attention_mask, token_type_ids, encoder_type='fist-last-avg'):
         '''
         :param input_ids:
         :param attention_mask:
         :param encoder_type: encoder_type:  "first-last-avg", "last-avg", "cls", "pooler(cls + dense)"
         :return:
         '''
-        output = self.bert(input_ids, attention_mask, output_hidden_states=True)
+        output = self.bert(input_ids, attention_mask, token_type_ids,  output_hidden_states=True)
 
         if encoder_type == 'fist-last-avg':
             # 第一层和最后一层的隐层取出  然后经过平均池化

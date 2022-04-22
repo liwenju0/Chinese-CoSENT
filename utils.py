@@ -6,6 +6,8 @@
 """
 import numpy as np
 import scipy.stats
+import random
+import torch
 
 
 def l2_normalize(vecs):
@@ -23,3 +25,11 @@ def compute_corrcoef(x, y):
 
 def compute_pearsonr(x, y):
     return scipy.stats.perasonr(x, y)[0]
+
+def set_seed(seed=1234):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True

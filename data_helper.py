@@ -71,15 +71,12 @@ def pad_to_maxlen(input_ids, max_len, pad_value=0):
     return input_ids
 
 
-def collate_fn(batch):
+def collate_fn(batch, all_max_len=128):
     # 按batch进行padding获取当前batch中最大长度
     max_len = max([len(d['input_ids']) for d in batch])
 
-    if max_len > 512:
-        max_len = 512
-
-    # 定一个全局的max_len
-    # max_len = 128
+    if max_len > all_max_len:
+        max_len = all_max_len
 
     input_ids, attention_mask, token_type_ids, labels = [], [], [], []
 

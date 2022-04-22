@@ -17,7 +17,7 @@ def set_args():
     parser.add_argument('--train_data', default='./data/PAWSX/PAWSX.train.data', type=str, help='训练数据集')
     parser.add_argument('--test_data', default='./data/PAWSX/PAWSX.test.data', type=str, help='测试数据集')
 
-    parser.add_argument('--pretrained_model_path', default='./mengzi_pretrain', type=str, help='预训练模型的路径')
+    parser.add_argument('--pretrained_model_path', default='hfl/chinese-roberta-wwm-ext', type=str, help='预训练模型的路径')
     parser.add_argument('--output_dir', default='./outputs', type=str, help='模型输出')
     parser.add_argument('--num_train_epochs', default=5, type=int, help='训练几轮')
     parser.add_argument('--train_batch_size', default=64, type=int, help='训练批次大小')
@@ -25,4 +25,6 @@ def set_args():
     parser.add_argument('--gradient_accumulation_steps', default=1, type=int, help='梯度积累几次更新')
     parser.add_argument('--learning_rate', default=2e-5, type=float, help='学习率大小')
     parser.add_argument('--seed', default=43, type=int, help='随机种子')
+    parser.add_argument('--max_len', default=128, type=int, help='最大长度')
+
     return parser.parse_args()

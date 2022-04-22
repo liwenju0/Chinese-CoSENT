@@ -4,32 +4,22 @@
 @email  : luxiaonlp@163.com
 @time   : 2022-01-07
 """
-import re
 import os
-import random
 import torch
 import numpy as np
 from tqdm import tqdm
 from config import set_args
 from model import Model
 from torch.utils.data import DataLoader
-from utils import l2_normalize, compute_corrcoef
+from utils import l2_normalize, compute_corrcoef, set_seed
 from transformers.models.bert import BertTokenizer
 from transformers import AdamW, get_linear_schedule_with_warmup
 from data_helper import CustomDataset, collate_fn, pad_to_maxlen, load_data, load_test_data
+import functools
 
 
-def set_seed():
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
-
-
-def get_sent_id_tensor(s_list):
+def get_sent_id_tensor(s_list, max_len=128):
     input_ids, attention_mask, token_type_ids, labels = [], [], [], []
-    max_len = max([len(_)+2 for _ in s_list])   # 这样写不太合适 后期想办法改一下
     for s in s_list:
         inputs = tokenizer.encode_plus(text=s, text_pair=None, add_special_tokens=True, return_token_type_ids=True)
         input_ids.append(pad_to_maxlen(inputs['input_ids'], max_len=max_len))
@@ -41,14 +31,14 @@ def get_sent_id_tensor(s_list):
     return all_input_ids, all_input_mask, all_segment_ids
 
 
-def evaluate():
+def evaluate(max_len=128):
     sent1, sent2, label = load_test_data(args.test_data)
     all_a_vecs = []
     all_b_vecs = []
     all_labels = []
     model.eval()
     for s1, s2, lab in tqdm(zip(sent1, sent2, label)):
-        input_ids, input_mask, segment_ids = get_sent_id_tensor([s1, s2])
+        input_ids, input_mask, segment_ids = get_sent_id_tensor([s1, s2], max_len=max_len)
         lab = torch.tensor([lab], dtype=torch.float)
         if torch.cuda.is_available():
             input_ids, input_mask, segment_ids = input_ids.cuda(), input_mask.cuda(), segment_ids.cuda()
@@ -74,7 +64,7 @@ def evaluate():
 
 def calc_loss(y_true, y_pred):
     # 1. 取出真实的标签
-    y_true = y_true[::2]    # tensor([1, 0, 1]) 真实的标签
+    y_true = y_true[::2]  # tensor([1, 0, 1]) 真实的标签
 
     # 2. 对输出的句子向量进行l2归一化   后面只需要对应为相乘  就可以得到cos值了
     norms = (y_pred ** 2).sum(axis=1, keepdims=True) ** 0.5
@@ -87,7 +77,7 @@ def calc_loss(y_true, y_pred):
     # 4. 取出负例-正例的差值
     y_pred = y_pred[:, None] - y_pred[None, :]  # 这里是算出所有位置 两两之间余弦的差值
     # 矩阵中的第i行j列  表示的是第i个余弦值-第j个余弦值
-    y_true = y_true[:, None] < y_true[None, :]   # 取出负例-正例的差值
+    y_true = y_true[:, None] < y_true[None, :]  # 取出负例-正例的差值
     y_true = y_true.float()
     y_pred = y_pred - (1 - y_true) * 1e12
     y_pred = y_pred.view(-1)
@@ -95,22 +85,20 @@ def calc_loss(y_true, y_pred):
         y_pred = torch.cat((torch.tensor([0]).float().cuda(), y_pred), dim=0)  # 这里加0是因为e^0 = 1相当于在log中加了1
     else:
         y_pred = torch.cat((torch.tensor([0]).float(), y_pred), dim=0)  # 这里加0是因为e^0 = 1相当于在log中加了1
-        
+
     return torch.logsumexp(y_pred, dim=0)
 
 
-
-
 if __name__ == '__main__':
-    args = set_args()
     set_seed()
+    args = set_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
     tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_path)
 
     # 加载数据集
     train_sentence, train_label = load_data(args.train_data)
-
+    collate_fn = functools.partial(collate_fn, all_max_len=args.max_len)
     train_dataset = CustomDataset(sentence=train_sentence, label=train_label, tokenizer=tokenizer)
     train_dataloader = DataLoader(dataset=train_dataset, shuffle=False, batch_size=args.train_batch_size,
                                   collate_fn=collate_fn, num_workers=1)
@@ -152,7 +140,7 @@ if __name__ == '__main__':
             if torch.cuda.is_available():
                 input_ids, input_mask, segment_ids = input_ids.cuda(), input_mask.cuda(), segment_ids.cuda()
                 label_ids = label_ids.cuda()
-            output = model(input_ids=input_ids, attention_mask=input_mask, encoder_type='fist-last-avg')
+            output = model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids, encoder_type='fist-last-avg')
             loss = calc_loss(label_ids, output)
             loss.backward()
             print("当前轮次:{}, 正在迭代:{}/{}, Loss:{:10f}".format(epoch, step, len(train_dataloader), loss))  # 在进度条前面定义一段文字
@@ -164,7 +152,7 @@ if __name__ == '__main__':
                 scheduler.step()
                 optimizer.zero_grad()
 
-        corr = evaluate()
+        corr = evaluate(max_len=args.max_len)
         s = 'Epoch:{} | corr: {:10f}'.format(epoch, corr)
         logs_path = os.path.join(args.output_dir, 'logs.txt')
         with open(logs_path, 'a+') as f:
